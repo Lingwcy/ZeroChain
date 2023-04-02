@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Zero.TOKEN;
 
-namespace Zero
+namespace Zero.NetChain.Dealing
 {
     public class Transaction
     {
@@ -18,10 +18,10 @@ namespace Zero
             Amount = amount;
         }
 
-        public string FromAddress { get; set; } 
+        public string FromAddress { get; set; }
         public string ToAddress { get; set; } = string.Empty;
-        public DateTime Time { get; set; }  
-        public decimal Amount { get; set; }  
+        public DateTime Time { get; set; }
+        public decimal Amount { get; set; }
 
     }
 }

@@ -1,9 +1,6 @@
 ﻿
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Data.Common;
-using System.Numerics;
-using System.Transactions;
+using Zero.NetChain.Dealing;
 using Zero.TOKEN;
 
 namespace Zero.NetChain
@@ -13,12 +10,10 @@ namespace Zero.NetChain
         private IList<Block> _chain;
         private T _token;//主治代币
         public TokenBook TokenBook { get; set; }
-        public int ProofOfWorkDifficulty { get; set; } = 2;
+        public int ProofOfWorkDifficulty { get; set; } = 0;
         public decimal MiningReward { get; set; } = 10;
         public ConcurrentQueue<Transaction> PendingTransactions { get; set; }
-
         public int MAXTransactionsCount { get; init; } = 5;//每个区块最大交易笔数
-
         public int FullBlockChainHight { get; set; }//被验证且填满交易笔数的区块
         public int AvaibleBlockChainHight { get; set; }//已经被验证的区块
 
@@ -34,7 +29,7 @@ namespace Zero.NetChain
 
         private Block CreateGenesisBlock()
         {
-            return new Block(0, DateTime.Now, "创世块", "0", new List<Transaction>());
+            return new Block(0, DateTime.Now, "创世块", "0", new ConcurrentQueue<Transaction>());
         }
 
         public Block GetLatestBlock()
@@ -51,10 +46,16 @@ namespace Zero.NetChain
                 Block previousBlock = _chain[i - 1];
                 if (currentBlock.Hash != currentBlock.CalculateHash())
                 {
+                    Console.WriteLine($"错误的区块{currentBlock.Index}\n" +
+                        $"{currentBlock.Hash} != {currentBlock.CalculateHash()}");
+                    currentBlock.PrintBlock();
                     return false;
                 }
                 if (currentBlock.PreviousHash != previousBlock.Hash)
                 {
+                    Console.WriteLine($"错误的区块{currentBlock.Index}\n" +
+                        $"{currentBlock.Hash} != {previousBlock.Hash}");
+                    currentBlock.PrintBlock();
                     return false;
                 }
             }
@@ -79,14 +80,15 @@ namespace Zero.NetChain
 
         public void MineNewBlock (string miningRewardAddress)
         {
-            var block = new Block(_chain.Count,DateTime.UtcNow,"data","priHash", new List<Transaction>());
+            var block = new Block(_chain.Count,DateTime.UtcNow,"data","priHash", new ConcurrentQueue<Transaction>());
             block.MineBlock(ProofOfWorkDifficulty);
             block.PreviousHash = GetLatestBlock().Hash;
             if(_token.CurrentSupply+ MiningReward > _token.TotalSupply)
             {
                 MiningReward = 0;
             }
-            block.Transactions.Add(new Transaction("NEW ZERO", miningRewardAddress, MiningReward));
+            block.Transactions.Enqueue(new Transaction("NEW ZERO", miningRewardAddress, MiningReward));
+            block.Hash= block.CalculateHash();
             _token.CurrentSupply += MiningReward;
             _chain.Add(block);
             AvaibleBlockChainHight++;
@@ -100,7 +102,8 @@ namespace Zero.NetChain
                     if (_chain[FullBlockChainHight].Transactions.Count < MAXTransactionsCount)
                     {
                         PendingTransactions.TryDequeue(out var dealing);
-                        _chain[FullBlockChainHight].Transactions.Add(dealing);
+                        _chain[FullBlockChainHight].Transactions.Enqueue(dealing);
+                        _chain[FullBlockChainHight].MineBlock(ProofOfWorkDifficulty);
                         Console.WriteLine("交易成功!");
                     }
                     else
