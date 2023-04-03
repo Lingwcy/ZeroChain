@@ -1,13 +1,15 @@
 ﻿
 using System.Collections.Concurrent;
+using Zero.MainChain;
 using Zero.NetChain.Dealing;
 using Zero.TOKEN;
 
 namespace Zero.NetChain
 {
-    public class Blockchain<T> where T : TokenBase
+    public class ZeroMineChain<T> where T : TokenBase
     {
-        private IList<Block> _chain;
+        private IList<Block> Chain {get;set;} //矿工链
+        private ZeroWorkChain WorkChain { get;set;} //不可篡改链
         private T _token;//主治代币
         public TokenBook TokenBook { get; set; }
         public int ProofOfWorkDifficulty { get; set; } = 0;
@@ -17,14 +19,15 @@ namespace Zero.NetChain
         public int FullBlockChainHight { get; set; }//被验证且填满交易笔数的区块
         public int AvaibleBlockChainHight { get; set; }//已经被验证的区块
 
-        public Blockchain()
+        public ZeroMineChain()
         {
-            _chain = new List<Block> { CreateGenesisBlock() };
+            Chain = new List<Block> { CreateGenesisBlock() };
             PendingTransactions = new ConcurrentQueue<Transaction>();
             TokenBook = new TokenBook();
             _token = (T)Activator.CreateInstance(typeof(T), TokenBook.TokenList.Count, "Zero", new Decimal(1), new decimal(10000), new  decimal(0));
             TokenBook.TokenList.Add(_token);
-            PrintChianInfo();
+            WorkChain= new ZeroWorkChain();
+            ShowBlockChainInfo();
         }
 
         private Block CreateGenesisBlock()
@@ -34,33 +37,9 @@ namespace Zero.NetChain
 
         public Block GetLatestBlock()
         {
-            return _chain[_chain.Count-1];
+            return Chain[Chain.Count-1];
         }
 
-
-        public bool IsValid()
-        {
-            for (int i = 1; i < _chain.Count; i++)
-            {
-                Block currentBlock = _chain[i];
-                Block previousBlock = _chain[i - 1];
-                if (currentBlock.Hash != currentBlock.CalculateHash())
-                {
-                    Console.WriteLine($"错误的区块{currentBlock.Index}\n" +
-                        $"{currentBlock.Hash} != {currentBlock.CalculateHash()}");
-                    currentBlock.PrintBlock();
-                    return false;
-                }
-                if (currentBlock.PreviousHash != previousBlock.Hash)
-                {
-                    Console.WriteLine($"错误的区块{currentBlock.Index}\n" +
-                        $"{currentBlock.Hash} != {previousBlock.Hash}");
-                    currentBlock.PrintBlock();
-                    return false;
-                }
-            }
-            return true;
-        }
 
 
         public void AddTransaction(Transaction transaction)
@@ -69,18 +48,17 @@ namespace Zero.NetChain
             {
                 throw new ArgumentNullException(nameof(transaction));
             }
-            if(GetBalance(transaction.FromAddress)<transaction.Amount)
+            if (GetBalance(transaction.FromAddress) < transaction.Amount)
             {
                 Console.WriteLine($"{transaction.FromAddress} 余额不足");
                 return;
             }
-            Console.WriteLine((GetBalance(transaction.FromAddress)));
             PendingTransactions.Enqueue(transaction);
         }
 
         public void MineNewBlock (string miningRewardAddress)
         {
-            var block = new Block(_chain.Count,DateTime.UtcNow,"data","priHash", new ConcurrentQueue<Transaction>());
+            var block = new Block(Chain.Count,DateTime.UtcNow,"data","priHash", new ConcurrentQueue<Transaction>());
             block.MineBlock(ProofOfWorkDifficulty);
             block.PreviousHash = GetLatestBlock().Hash;
             if(_token.CurrentSupply+ MiningReward > _token.TotalSupply)
@@ -90,7 +68,7 @@ namespace Zero.NetChain
             block.Transactions.Enqueue(new Transaction("NEW ZERO", miningRewardAddress, MiningReward));
             block.Hash= block.CalculateHash();
             _token.CurrentSupply += MiningReward;
-            _chain.Add(block);
+            Chain.Add(block);
             AvaibleBlockChainHight++;
         }
         public void MinePendingTransactions()
@@ -99,16 +77,20 @@ namespace Zero.NetChain
             {
                 if (PendingTransactions.Count != 0)
                 {
-                    if (_chain[FullBlockChainHight].Transactions.Count < MAXTransactionsCount)
+                    if (Chain[FullBlockChainHight].Transactions.Count < MAXTransactionsCount)
                     {
                         PendingTransactions.TryDequeue(out var dealing);
-                        _chain[FullBlockChainHight].Transactions.Enqueue(dealing);
-                        _chain[FullBlockChainHight].MineBlock(ProofOfWorkDifficulty);
+                        Chain[FullBlockChainHight].Transactions.Enqueue(dealing);
+                        Chain[FullBlockChainHight].MineBlock(ProofOfWorkDifficulty);
                         Console.WriteLine("交易成功!");
                     }
                     else
                     {
-                        if (AvaibleBlockChainHight > FullBlockChainHight) { FullBlockChainHight++; }
+                        if (AvaibleBlockChainHight > FullBlockChainHight)
+                        {
+                            WorkChain.Chain.Add(Chain[FullBlockChainHight]);
+                            FullBlockChainHight++; 
+                        }
                         else { Console.WriteLine("没有新的可用区块"); }
                     }
                 }
@@ -118,7 +100,7 @@ namespace Zero.NetChain
         {
             decimal balance = 0;
 
-            foreach (var block in _chain)
+            foreach (var block in Chain)
             {
                 foreach (var transaction in block.Transactions)
                 {
@@ -148,43 +130,47 @@ namespace Zero.NetChain
             return balance;
         }
 
-        //测试方法
-        public void AttackChainBlock(int i)
-        {
-            _chain[i].Hash = "000xxxAttacted";
-        }
-
-        public void ShowBlockChian()
-        {
-            foreach (Block block in _chain)
-            {
-                // 对每一个区块执行相应的操作
-                // 比如打印区块的数据等
-                Console.WriteLine("区块代号: " + block.Index);
-                Console.WriteLine("生成时间: " + block.Timestamp);
-                Console.WriteLine("块哈希值: " + block.Hash);
-                Console.WriteLine("前块哈希值: " + block.PreviousHash);
-                Console.WriteLine("区块数据: " + block.Data);
-                Console.WriteLine("区块交易: ");
-                int i = 1;
-                foreach(var tr in block.Transactions)
-                {
-                    Console.WriteLine($"{i}.时间:{tr.Time} 发送地址:{tr.FromAddress} 接收地址:{tr.ToAddress}");
-                    i++;
-                }
-                Console.WriteLine("------------------------------------");
-            }
-        }
-
-        public void PrintChianInfo()
+        public void ShowBlockChainInfo()
         {
             Console.WriteLine($"区块链信息: \n" +
-                $"区块高度:{_chain.Count}\n" +
+                $"区块高度:{Chain.Count}\n" +
                 $"主治代币:{_token.Name}\n" +
                 $"最大供应量:{_token.TotalSupply}\n" +
                 $"目前供应量:{_token.CurrentSupply}\n" +
                 $"价格:{_token.Value}\n" +
                 $"链中代币数量:{TokenBook.TokenList.Count}");
+        }
+
+        public bool IsValid()
+        {
+            for (int i = 1; i < Chain.Count; i++)
+            {
+                Block currentBlock = Chain[i];
+                Block previousBlock = Chain[i - 1];
+                if (currentBlock.Hash != currentBlock.CalculateHash())
+                {
+                    Console.WriteLine($"错误的区块{currentBlock.Index}\n" +
+                        $"{currentBlock.Hash} != {currentBlock.CalculateHash()}");
+                    currentBlock.PrintBlock();
+                    return false;
+                }
+                if (currentBlock.PreviousHash != previousBlock.Hash)
+                {
+                    Console.WriteLine($"错误的区块{currentBlock.Index}\n" +
+                        $"{currentBlock.Hash} != {previousBlock.Hash}");
+                    currentBlock.PrintBlock();
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        public void ShowBlockChain()
+        {
+            foreach (Block block in Chain)
+            {
+                block.PrintBlock();
+            }
         }
     }
 }

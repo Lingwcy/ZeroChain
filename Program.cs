@@ -16,7 +16,7 @@ namespace Zero
 
         public static void DealingTest()
         {
-            Blockchain<ZERO> chain = new Blockchain<ZERO>();
+            ZeroMineChain<ZERO> chain = new ZeroMineChain<ZERO>();
             for (int i = 0; i < 1; i++)
             {
                 chain.MineNewBlock("0x123456789");
@@ -24,7 +24,7 @@ namespace Zero
             Task.Factory.StartNew(chain.MinePendingTransactions);
             Task.Factory.StartNew(() =>
             {
-                for (int i = 0; i < 5; i++)
+                for (int i = 0; i < 7; i++)
                 {
                     Transaction t = new Transaction("0x123456789", "test", 1.5M);
                     chain.AddTransaction(t);
@@ -40,10 +40,10 @@ namespace Zero
             });
 
 
-            chain.PrintChianInfo();
+            chain.ShowBlockChainInfo();
 
             Console.ReadLine();
-            chain.ShowBlockChian();
+            chain.ShowBlockChain();
             Console.WriteLine("余额：" + chain.GetBalance("0x123456789"));
             Console.WriteLine("余额：" + chain.GetBalance("test"));
             Console.WriteLine(chain.IsValid());

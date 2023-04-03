@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <Folder Include="Node\" />
+    <Folder Include="Wallet\" />
   </ItemGroup>
 
 </Project>

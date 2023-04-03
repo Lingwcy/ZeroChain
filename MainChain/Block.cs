@@ -11,6 +11,12 @@ namespace Zero.NetChain
 {
     public class Block
     {
+        private int v1;
+        private DateTime now;
+        private string v2;
+        private string v3;
+        private ConcurrentQueue<System.Transactions.Transaction> transactions;
+
         public int Index { get; set; }  // 区块编号
         public DateTime Timestamp { get; set; }  // 时间戳
         public string Hash { get; set; }  // 当前区块哈希值
@@ -28,6 +34,15 @@ namespace Zero.NetChain
             Hash = CalculateHash();
             Nonce = 0;
             Transactions = transactions;
+        }
+
+        public Block(int v1, DateTime now, string v2, string v3, ConcurrentQueue<System.Transactions.Transaction> transactions)
+        {
+            this.v1 = v1;
+            this.now = now;
+            this.v2 = v2;
+            this.v3 = v3;
+            this.transactions = transactions;
         }
 
         public string CalculateHash()
@@ -69,4 +84,5 @@ namespace Zero.NetChain
             Console.WriteLine("///////////////////////////////////////////");
         }
     }
+
 }
